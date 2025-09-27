@@ -263,7 +263,7 @@ content[start:start + len(shellcode)] = shellcode
 
 Buffer_address = 0xffffd188
 ret = Buffer_address + 300
-for x in range(100, 200,4):
+for x in range(100, 300,4):
     offset = x  
     print("Using return address: ", hex(ret), " with offset: ", offset)
     
@@ -276,3 +276,82 @@ for x in range(100, 200,4):
 
 
 ```
+
+
+
+## Task 4: Experimenting with the Address Randomization (5 คะแนน) 
+
+
+
+```
+sudo /sbin/sysctl-w kernel.randomize_va_space=2  
+```
+
+![alt text](image-16.png)
+
+![alt text](image-17.png)
+
+![alt text](image-18.png)
+
+![alt text](image-19.png)
+
+## Tasks 5: Experimenting with Other Countermeasures ( 10 คะแนน) 
+
+![alt text](image-20.png)
+
+https://www.redhat.com/en/blog/security-technologies-stack-smashing-protection-stackguard
+
+### หลักการทำงานพื้นฐาน
+
+1. **แทรก canary value** ระหว่าง stack variables และ return address
+2. **ตรวจสอบ canary** ก่อน function return
+3. **Terminate program** หาก canary ถูกเปลี่ยนแปลง
+4. **ลดผลกระทบ** จาก code execution เหลือเพียง denial of service
+
+
+
+### ประเภทของ Canary ทั้ง 3 แบบ
+
+**1. Terminator Canaries:**
+- ประกอบด้วยอักขระ: NULL(0x00), CR(0x0d), LF(0x0a), EOF(0xff)
+- หลักการ: string functions จะหยุดทำงานเมื่อเจออักขระเหล่านี้
+- ข้อเสีย: ผู้โจมตีรู้ค่า canary ล่วงหน้า
+- การ bypass: ใช้ non-string functions และเขียนทับ canary ด้วยค่าที่ถูกต้อง
+
+**2. Random Canaries:**
+- สุ่มค่าตอน program startup จาก `/dev/urandom`
+- หากไม่มี `/dev/urandom` จะใช้ hash ของเวลา
+- ข้อดี: ไม่สามารถทำนายค่าได้ล่วงหน้า
+- การ bypass: ต้องมี information leak เพื่ออ่านค่า canary
+
+**3. Random XOR Canaries:**
+- XOR random value กับ control data (frame pointer + return address)
+- เมื่อ canary หรือ control data ถูกเปลี่ยน ค่าจะผิดทันที
+- ป้องกันได้ดีที่สุด
+
+### การทำงานจริงใน Assembly Level
+
+**โค้ดต้นฉบับ:**
+```c
+void function1(const char* str) {
+    char buffer[16];
+    strcpy(buffer, str);
+}
+```
+
+**หลัง StackGuard Transform:**
+```c
+extern uintptr_t __stack_chk_guard;
+noreturn void __stack_chk_fail(void);
+
+void function1(const char* str) {
+    uintptr_t canary = __stack_chk_guard;  // โหลด canary
+    char buffer[16];
+    strcpy(buffer, str);
+    if ((canary = canary ^ __stack_chk_guard) != 0)  // ตรวจสอบ
+        __stack_chk_fail();  // terminate หากผิดพลาด
+}
+```
+
+
+
