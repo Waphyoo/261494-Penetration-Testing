@@ -615,11 +615,41 @@ done
 
 ## Tasks 5: Experimenting with Other Countermeasures ( 10 คะแนน) 
 
+### Objective 1
+- Turn on the StackGuard Protection
+- Describe and explain your observations. 
+
+### Objective 2
+- Turn on the Non-executable Stack Protection 
+- Describe and explain your observations
+
+---
+### Objective 1 - Turn on the StackGuard Protection
+
+![alt text](image-26.png)
+
+- gcc turn on the StackGuard Protection
+
+![alt text](image-27.png)
+
+- ลบแล้วสร้าง stack-L1 ใหม่
+
+![alt text](image-28.png)
+
+- canary ถูกเขียนทับ
+
+```
+The value of the canary is checked periodically for any change from the initial value. If any change is detected, the stack smashing detected error is produced.
+```
+
+https://www.scaler.com/topics/stack-smashing-detected/
 
 
 ![alt text](image-20.png)
 
 https://www.redhat.com/en/blog/security-technologies-stack-smashing-protection-stackguard
+
+https://www.scaler.com/topics/stack-smashing-detected/
 
 ### หลักการทำงานพื้นฐาน
 
@@ -672,4 +702,33 @@ void function1(const char* str) {
 ```
 
 
+---
 
+### Objective 2 - Turn on the Non-executable Stack Protection 
+
+### Senario
+ในอดีต ระบบปฏิบัติการอนุญาตให้ stack สามารถรันโค้ดได้ (executable stack) แต่ปัจจุบันเปลี่ยนแปลงไปแล้ว
+
+#### วิธีการทำงานใน Ubuntu
+1. **Program Header Marking**
+   - ไฟล์ binary ของโปรแกรม (และ shared libraries) ต้องประกาศว่าต้องการ executable stack หรือไม่
+   - ต้องมีการทำเครื่องหมายใน program header
+
+2. **การตัดสินใจของระบบ**
+   - Kernel หรือ dynamic linker จะอ่านเครื่องหมายนี้
+   - แล้วตัดสินใจว่าจะทำให้ stack ของโปรแกรมนั้น execute ได้หรือไม่
+
+#### การทำงานของ GCC
+- **ค่า Default**: GCC จะทำ stack เป็น **non-executable** โดยอัตโนมัติ
+- **ทำให้ non-executable ชัดเจน**: ใช้แฟล็ก `-z noexecstack`
+- **ทำให้ executable** (ในแล็บนี้): ใช้แฟล็ก `-z execstack`
+
+
+![alt text](image-29.png)
+
+- แก้ไข Makefile ให้ใช้ **ค่า Default**: GCC จะทำ stack เป็น **non-executable** โดยอัตโนมัติ
+
+![alt text](image-30.png)
+
+- จาก Task 1 ถ้า shell code สำเร็จ จะแสดง success message
+- เมื่อ stack เป็น **non-executable** 
