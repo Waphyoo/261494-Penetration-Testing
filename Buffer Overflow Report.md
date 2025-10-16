@@ -1,3 +1,10 @@
+# Report Buffer Overflow Lab 
+
+Name: Watunyoo Phanapaisarnsakul
+
+Code: 650610804
+
+Full Link Markdown: https://github.com/Waphyoo/261494-Penetration-Testing/blob/main/Buffer%20Overflow%20Report.md
 
 ## Lab setup
 
@@ -917,6 +924,15 @@ gdb-peda$ x/50i $eax
 
 
 ![alt text](image-37.png)
+
+- เมื่อ cpu execute call 0xffffcec8 ทำให้ pc ไปชี้ที่ 0xffffcec8 ซึ่งคือตำแหน่งใน stack ที่เก็บ shell code 
+- cpe decode ค่าใน stack ออกมาพบว่าเป็น instruction แต่ stack ไม่มี execute permission ทำให้เกิด segmentation fault
+
+```
+Segmentation faults C++ is an error that occurs when a program attempts to access a memory location it does not have permission to access
+```
+
+https://www.geeksforgeeks.org/cpp/segmentation-fault-c-cpp/
 
 
 
